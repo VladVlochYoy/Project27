@@ -10,20 +10,6 @@ def fibonacci(n):
     else: 
         return fibonacci(n - 1) + fibonacci(n - 2)
 
-def is_palindrome(s): 
-    if len(s) <= 1: 
-        return True 
-    else: 
-        return s == s[-1] and is_palindrome(s[1:-1])
-
-def power(a, n): 
-    if n == 0: 
-        return 1 
-    elif n % 2 == 1: 
-        return power(a, n - 1) * a 
-    else: 
-        return power(a, n // 2) ** 2
-
 def make_multiplier(factor): 
     def multiply(x): 
         return x * factor 
@@ -51,13 +37,6 @@ def my_decorator(func):
     def my_function(): 
         print("Выполнение") 
         my_function()
-
-def show_args(*args): 
-    print(f"Количество: {len(args)}") 
-    print(f"Аргументы: {args}")
-def concat(*words): 
-    return ''.join(words)
- 
 
 def fibonacci_generator(n):
     a, b = 0, 1
