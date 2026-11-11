@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-TZ2V74FGQW"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-T9YZP532PT"></script>
+    <script src="sites.js"></script>
+    <script src="index.js" defer></script>
+</head>
+<body>
+    <p>Live reload enabled.</p>
+    <script>
+        fetch('sites.js')
+        .then(response => {
+            if (!response.ok) throw new Error('Ошибка сети: ' + response.status);
+            return response.text();
+        })
+        .then(data => {
+            console.log('Полученные данные:', data);
+        })
+        .catch(err => console.error('Ошибка fetch:', err));
+        const SOURCES = [
+            {
+                name: "google-source-1",
+                url: window.env.GOOGLE_SOURCE_1_URL
+            },
+            {
+                name: "google-source-2",
+                url: window.env.GOOGLE_SOURCE_2_URL
+            },
+            {
+                name: "google-source-3",
+                url: window.env.GOOGLE_SOURCE_3_URL
+            },
+            {
+                name: "google-source-4",
+                url: window.env.GOOGLE_SOURCE_4_URL
+            },
+            {
+                source: "google-source-1",
+                externalId: "...",
+                value: 123,
+                timestamp: "2026-10-08T19:00:00.000Z"
+            },
+            {
+                source: "google-source-2",
+                externalId: "...",
+                value: 123,
+                timestamp: "2026-10-08T19:00:00.000Z"
+            },
+            {
+                source: "google-source-3",
+                externalId: "...",
+                value: 123,
+                timestamp: "2026-10-08T19:00:00.000Z"
+            },
+            {
+                source: "google-source-4",
+                externalId: "...",
+                value: 123,
+                timestamp: "2026-10-08T19:00:00.000Z"
+            }
+        ];
+
+        fetch('objects.json')
+        .then(response => {
+          if (!response.ok) throw new Error('Ошибка сети или файл не найден');
+          return response.json();
+        })
+        .then(data => {
+          console.log('Данные из JSON:', data);
+          document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+        })
+        .catch(err => {
+          console.error('Ошибка:', err);
+          document.getElementById('output').textContent = 'Ошибка загрузки данных';
+        });
+
+        fetch("/api/stats")
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById("valid").textContent = data.valid;
+            document.getElementById("invalid").textContent = data.invalid;
+        });
+
+        function validateObject(obj) {
+            const errors = [];
+
+            if (!obj.externalId) {
+                errors.push('externalId is required');
+            }
+
+            if (typeof obj.value !== 'number') {
+                errors.push('value must be a number');
+            }
+
+            let tsValid = false;
+            if (obj.timestamp) {
+                const parsed = Date.parse(obj.timestamp);
+                if (!isNaN(parsed)) {
+                    tsValid = true;
+                }
+            }
+            if (!tsValid) {
+                errors.push('invalid timestamp');
+            }
+
+            return {
+                valid: errors.length === 0,
+                errors,
+            };
+        }
+
+        async function saveValidatedObject(obj) {
+        const validation = validateObject(obj);
+        if (!validation.valid) {
+            return { success: false, errors: validation.errors };
+        }
+
+        const client = await pool.connect();
+        try {
+            const ts = typeof obj.timestamp === 'number'
+            ? new Date(obj.timestamp).toISOString()
+            : new Date(obj.timestamp).toISOString();
+
+            const query = `
+            INSERT INTO objects (external_id, value, timestamp)
+            VALUES ($1, $2, $3)
+            RETURNING id, external_id, value, timestamp
+            `;
+            const values = [obj.externalId, obj.value, ts];
+
+            const result = await client.query(query, values);
+            const inserted = result.rows[0];
+
+            return { success: true, data: inserted };
+        } catch (err) {
+            console.error('DB error:', err);
+            return { success: false, errors: ['Database error'] };
+        } finally {
+            client.release();
+        }
+        }
+
+        async function renderObjects() {
+            const container = document.getElementById('container');
+            const statusBox = document.getElementById('status');
+
+            try {                
+                let data;
+                try {
+                    const response = await fetch('objects.json');
+                    if (!response.ok) throw new Error('Файл не найден или ошибка сети');
+                    data = await response.json();
+                } catch (e) {
+                    console.warn('Файл objects.json не найден, используем демо-данные для демонстрации');
+                    data = [
+                        { "name": "electrical_speed", "type": "byte", "value": 2 },
+                        { "name": "electrical_speed_000", "type": "float", "value": 623.4187 },
+                        { "name": "nano_id_001", "type": "int", "value": 2345 },
+                        { "name": "thermal_pressure_002", "type": "double", "value": -452.9812 },
+                        { "name": "user_flag_003", "type": "boolean", "value": true },
+                        { "name": "system_level_004", "type": "byte", "value": 189 }
+                    ];
+                }
+
+                if (!Array.isArray(data)) {
+                    throw new Error('Ожидался массив объектов');
+                }
+
+                const table = document.createElement('table');
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                ['Имя (Name)', 'Тип (Type)', 'Значение (Value)'].forEach(text => {
+                    const th = document.createElement('th');
+                    th.textContent = text;
+                    headerRow.appendChild(th);
+                });
+                thead.appendChild(headerRow);
+                table.appendChild(thead);
+
+                const tbody = document.createElement('tbody');
+                data.forEach(obj => {
+                    const row = document.createElement('tr');
+                    
+                    const nameCell = document.createElement('td');
+                    nameCell.textContent = obj.name;
+                    row.appendChild(nameCell);
+
+                    const typeCell = document.createElement('td');
+                    typeCell.textContent = obj.type;
+                    typeCell.className = getTypeColorClass(obj.type);
+                    row.appendChild(typeCell);
+
+                    const valueCell = document.createElement('td');
+                    valueCell.textContent = obj.value;
+                    row.appendChild(valueCell);
+
+                    tbody.appendChild(row);
+                });
+                table.appendChild(tbody);
+
+                container.innerHTML = '';
+                container.appendChild(table);
+
+                statusBox.textContent = `Успешно загружено объектов: ${data.length}`;
+                statusBox.className = 'success';
+
+            } catch (err) {
+                console.error(err);
+                container.innerHTML = '<p style="color: red;">Ошибка загрузки данных. Проверьте консоль.</p>';
+                statusBox.textContent = 'Ошибка: ' + err.message;
+                statusBox.className = 'error';
+            }
+        }
+
+        renderObjects();
+
+        // Функция на обгловление данных в каждую секунду
+
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+    </script>
+</body>
+</html>
