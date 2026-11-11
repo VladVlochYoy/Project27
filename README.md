@@ -7,4 +7,4 @@
 
 1. Клонируйте репозиторий:
    ```bash
-   git clone https://github.com/username/my-awesome-project.git
+   git clone https://github.com/username/Project27.git
